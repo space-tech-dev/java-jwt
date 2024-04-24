@@ -69,17 +69,55 @@ class PayloadDeserializer extends StdDeserializer<Payload> {
         return list;
     }
 
-    Instant getInstantFromSeconds(Map<String, JsonNode> tree, String claimName) {
+    // Instant getInstantFromSeconds(Map<String, JsonNode> tree, String claimName) {
+    //     JsonNode node = tree.get(claimName);
+    //     if (node == null || node.isNull()) {
+    //         return null;
+    //     }
+    //     if (!node.canConvertToLong()) {
+    //         throw new JWTDecodeException(
+    //                 String.format("The claim '%s' contained a non-numeric date value.", claimName));
+    //     }
+    //     return Instant.ofEpochSecond(node.asLong());
+    // }        
+    
+    public Instant getInstantFromSeconds(Map<String, JsonNode> tree, String claimName) {
         JsonNode node = tree.get(claimName);
         if (node == null || node.isNull()) {
             return null;
         }
-        if (!node.canConvertToLong()) {
-            throw new JWTDecodeException(
-                    String.format("The claim '%s' contained a non-numeric date value.", claimName));
+    
+        // 尝试直接获取长整型
+        if (node.isLong()) {
+            return Instant.ofEpochSecond(node.longValue());
         }
-        return Instant.ofEpochSecond(node.asLong());
+        
+        // 如果节点是字符串或数字类型，尝试解析为长整型
+        if (node.isTextual() || node.isNumber()) {
+            String textValue = node.asText().trim();
+            // 查找小数点，并截断小数部分
+            int dotIndex = textValue.indexOf('.');
+            if (dotIndex != -1) {
+                textValue = textValue.substring(0, dotIndex);
+            }
+            try {
+                long seconds = Long.parseLong(textValue);
+                return Instant.ofEpochSecond(seconds);
+            } catch (NumberFormatException e) {
+                throw new JWTDecodeException(
+                    String.format(
+                        "The claim '%s' contained a non-numeric date value that could not be parsed as long: %s", 
+                        claimName, node.asText()
+                    )
+                );
+            }
+        }
+        
+        // 如果无法解析为长整型，抛出异常
+        throw new JWTDecodeException(
+                String.format("The claim '%s' contained a non-numeric date value.", claimName));
     }
+
 
     String getString(Map<String, JsonNode> tree, String claimName) {
         JsonNode node = tree.get(claimName);
